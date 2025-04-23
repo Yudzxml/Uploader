@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Upload File ke GitHub</title>
+  <style>
+    body {
+      font-family: 'Roboto', sans-serif;
+      background-color: #e9f2f7;
+      margin: 0;
+      padding: 0;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+      flex-direction: column;
+      text-align: center;
+    }
+    .container {
+      background: #fff;
+      padding: 2rem;
+      border-radius: 12px;
+      box-shadow: 0 12px 24px rgba(0, 0, 0, 0.1);
+      max-width: 500px;
+      width: 100%;
+    }
+    input[type="file"], button {
+      padding: 12px;
+      font-size: 1rem;
+      margin-bottom: 1rem;
+      width: 100%;
+      border-radius: 8px;
+      border: 1px solid #ddd;
+      cursor: pointer;
+    }
+    button {
+      background-color: #007bff;
+      color: white;
+      border: none;
+    }
+    button:hover {
+      background-color: #0056b3;
+    }
+    .loading {
+      display: none;
+      border: 6px solid #f3f3f3;
+      border-top: 6px solid #007bff;
+      border-radius: 50%;
+      width: 40px;
+      height: 40px;
+      animation: spin 1s linear infinite;
+      margin: 1rem auto;
+    }
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+    .preview {
+      margin-top: 1rem;
+    }
+    pre {
+      text-align: left;
+      white-space: pre-wrap;
+      background: #f9f9f9;
+      padding: 1rem;
+      border-radius: 8px;
+      font-size: 0.9rem;
+    }
+  </style>
+  <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+</head>
+<body>
+
+  <div class="container">
+    <h1>Upload File ke GitHub</h1>
+    <form id="uploadForm">
+      <input type="file" id="fileInput" required />
+      <button type="submit">Upload</button>
+    </form>
+
+    <div class="loading" id="loadingSpinner"></div>
+
+    <h3>Response:</h3>
+    <pre id="responseBox">Belum ada upload</pre>
+
+    <button id="copyBtn" style="display:none;">Copy URL</button>
+    <div class="preview" id="filePreview"></div>
+  </div>
+
+  <script>
+    const MAX_FILE_SIZE = 20 * 1024 * 1024;
+    const form = document.getElementById('uploadForm');
+    const responseBox = document.getElementById('responseBox');
+    const loadingSpinner = document.getElementById('loadingSpinner');
+    const copyBtn = document.getElementById('copyBtn');
+    const preview = document.getElementById('filePreview');
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const file = document.getElementById('fileInput').files[0];
+
+      if (!file) return alert('Pilih file terlebih dahulu!');
+      if (file.size > MAX_FILE_SIZE) return alert('Ukuran maksimal 20MB');
+
+      loadingSpinner.style.display = 'block';
+      responseBox.textContent = 'Uploading...';
+      preview.innerHTML = '';
+      copyBtn.style.display = 'none';
+
+      const reader = new FileReader();
+      reader.onloadend = async () => {
+        const base64 = reader.result.split(',')[1];
+
+        try {
+          const response = await axios.post('https://api-upload-cyan.vercel.app/api/upload', {
+            fileName: file.name,
+            content: base64
+          }, {
+            headers: {
+              'Content-Type': 'application/json'
+            }
+          });
+
+          const url = response.data.url;
+          responseBox.textContent = JSON.stringify(response.data, null, 2);
+          copyBtn.style.display = 'block';
+          copyBtn.onclick = () => {
+            navigator.clipboard.writeText(url);
+            copyBtn.textContent = 'Copied!';
+            setTimeout(() => copyBtn.textContent = 'Copy URL', 1500);
+          };
+
+          const type = file.type;
+          if (type.startsWith('image/')) {
+            preview.innerHTML = `<img src="${url}" alt="Image preview" style="max-width:100%; border-radius: 8px;" />`;
+          } else if (type.startsWith('video/')) {
+            preview.innerHTML = `<video controls style="max-width:100%; border-radius: 8px;">
+                                  <source src="${url}" type="${type}">Video tidak didukung
+                                </video>`;
+          } else if (type.startsWith('audio/')) {
+            preview.innerHTML = `<audio controls style="width:100%">
+                                  <source src="${url}" type="${type}">Audio tidak didukung
+                                </audio>`;
+          } else {
+            preview.textContent = 'Preview tidak tersedia untuk jenis file ini.';
+          }
+
+        } catch (error) {
+          console.error('Error uploading file:', error);
+          if (error.response) {
+            console.error('Response data:', error.response.data);
+          } else if (error.request) {
+            console.error('Request error:', error.request);
+          } else {
+            console.error('General error:', error.message);
+          }
+          responseBox.textContent = `Error: ${error.message}`;
+        } finally {
+          loadingSpinner.style.display = 'none';
+        }
+      };
+      reader.readAsDataURL(file);
+    });
+  </script>
+</body>
+</html>
